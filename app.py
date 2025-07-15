@@ -1,38 +1,73 @@
+import warnings
+import numpy as np
+import base64
 import streamlit as st
 import pandas as pd
 import joblib
 
-# Load the trained model
-model = joblib.load('heart_disease_model.pkl')
+# Suppress specific warnings
+warnings.filterwarnings("ignore", message="In the future np.bool will be defined as the corresponding NumPy scalar.")
+warnings.filterwarnings("ignore", message="The use_column_width parameter has been deprecated.*")
+warnings.filterwarnings("ignore", message="Serialization of dataframe to Arrow table was unsuccessful.*")
 
-# Title and description
-st.title("Heart Disease Prediction")
+# Fix for np.bool deprecation
+if not hasattr(np, 'bool'):
+    np.bool = bool
+
+# Set Streamlit Page Config
+st.set_page_config(page_title="Heart Disease Prediction", layout="centered")
+
+# Load model
+@st.cache_resource
+
+def load_model():
+    return joblib.load("heart_disease_model.pkl")
+
+model = load_model()
+
+# Theme selector
+theme = st.sidebar.radio("Select Theme", ["Light", "Dark"])
+if theme == "Dark":
+    st.markdown("""
+    <style>
+    .stApp { background-color: #1E1E2F; color: white; }
+    </style>
+    """, unsafe_allow_html=True)
+else:
+    st.markdown("""
+    <style>
+    .stApp { background-color: #F7F7F7; color: black; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# App title and subtitle
+st.title("🫀 Heart Disease Prediction")
 st.markdown("""
-Enter patient medical details to assess the likelihood of heart disease.
+Enter patient details to assess the likelihood of heart disease.
 """)
 
-# Input fields organized into columns for better layout
+# UI layout
 col1, col2 = st.columns(2)
 
 with col1:
-    age = st.number_input("Age", min_value=1, max_value=120, value=25)
+    age = st.number_input("Age", 1, 120, 30)
     sex = st.selectbox("Sex", ["Male", "Female"])
-    cp = st.selectbox("Chest Pain Type", [0, 1, 2, 3], help="0: Typical angina, 1: Atypical angina, 2: Non-anginal pain, 3: Asymptomatic")
-    trestbps = st.number_input("Resting Blood Pressure (mm Hg)", min_value=80, max_value=200, value=120)
-    chol = st.number_input("Serum Cholesterol (mg/dl)", min_value=100, max_value=600, value=200)
-    fbs = st.selectbox("Fasting Blood Sugar > 120 mg/dl", ["No", "Yes"])
-    restecg = st.selectbox("Resting ECG Results", [0, 1, 2])
+    cp = st.selectbox("Chest Pain Type", [0, 1, 2, 3], help="0: Typical, 1: Atypical, 2: Non-anginal, 3: Asymptomatic")
+    trestbps = st.number_input("Resting Blood Pressure (mm Hg)", 80, 200, 120)
+    chol = st.number_input("Cholesterol (mg/dL)", 100, 600, 200)
+    fbs = st.selectbox("Fasting Blood Sugar > 120 mg/dL", ["No", "Yes"])
+    restecg = st.selectbox("Resting ECG", [0, 1, 2])
 
 with col2:
-    thalach = st.number_input("Max Heart Rate Achieved", min_value=60, max_value=220, value=100)
+    thalach = st.number_input("Max Heart Rate", 60, 220, 150)
     exang = st.selectbox("Exercise Induced Angina", ["No", "Yes"])
-    oldpeak = st.number_input("ST Depression Induced by Exercise", min_value=0.0, max_value=6.0, step=0.1, value=0.0)
-    slope = st.selectbox("Slope of Peak Exercise ST Segment", [0, 1, 2])
-    ca = st.selectbox("Number of Major Vessels (0-4)", [0, 1, 2, 3, 4])
+    oldpeak = st.number_input("ST Depression", 0.0, 6.0, 1.0, step=0.1)
+    slope = st.selectbox("Slope of ST", [0, 1, 2])
+    ca = st.selectbox("Major Vessels Colored", [0, 1, 2, 3, 4])
     thal = st.selectbox("Thalassemia", ["Normal", "Fixed Defect", "Reversible Defect"])
 
-# Convert categorical data to numerical
-data = pd.DataFrame({
+# Data formatting
+input_data = pd.DataFrame({
     'age': [age],
     'sex': [1 if sex == "Male" else 0],
     'cp': [cp],
@@ -48,12 +83,13 @@ data = pd.DataFrame({
     'thal': [1 if thal == "Normal" else (2 if thal == "Fixed Defect" else 3)]
 })
 
-# Prediction button
-if st.button('Predict Heart Disease'):
-    prediction = model.predict(data)[0]
-    prediction_proba = model.predict_proba(data)[0][1]
+# Predict
+if st.button("Predict Heart Disease"):
+    prediction = model.predict(input_data)[0]
+    probability = model.predict_proba(input_data)[0][1]
 
+    st.subheader("Prediction Result")
     if prediction == 1:
-        st.error(f" High Risk of Heart Disease! Probability: {prediction_proba:.2%}")
+        st.error(f"⚠️ High Risk of Heart Disease! Probability: {probability:.2%}")
     else:
-        st.success(f" Low Risk of Heart Disease! Probability: {prediction_proba:.2%}")
+        st.success(f"✅ Low Risk of Heart Disease. Probability: {probability:.2%}")
